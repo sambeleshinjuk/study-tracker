@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Study Tracker</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#4f46e5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Study Tracker">
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--text:#1d2230;--muted:#6a7189;--accent:#4f46e5;--accent-t:#fff;--ok:#16a34a;--warn:#d97706;--bad:#dc2626;--line:#e3e6f0;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12141c;--card:#1b1e2a;--text:#eceef6;--muted:#9aa0b8;--accent:#8b85ff;--accent-t:#12141c;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--line:#2b2f40}}
+:root[data-theme="dark"]{--bg:#12141c;--card:#1b1e2a;--text:#eceef6;--muted:#9aa0b8;--accent:#8b85ff;--accent-t:#12141c;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--line:#2b2f40}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.5rem;margin:0 0 2px}
+.sub{color:var(--muted);margin:0 0 18px;font-size:.92rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.add{display:grid;gap:10px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+input{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;flex:1;min-width:140px}
+button,.btn{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;padding:8px 12px;text-decoration:none;display:inline-block;font-size:.88rem}
+button.primary{background:var(--accent);color:var(--accent-t);border-color:var(--accent);font-weight:600;padding:10px 14px}
+.banner{border-left:4px solid var(--warn);background:var(--card);border-radius:10px;padding:12px 14px;margin-bottom:14px;border:1px solid var(--line);border-left:4px solid var(--warn)}
+.banner b{display:block;margin-bottom:4px}
+.task{display:flex;gap:12px;align-items:flex-start}
+.task input[type=checkbox]{flex:none;min-width:0;width:22px;height:22px;margin-top:2px;accent-color:var(--ok)}
+.t-title{font-weight:600}
+.meta{font-size:.85rem;color:var(--muted)}
+.tag{font-size:.78rem;border-radius:99px;padding:1px 9px;border:1px solid currentColor;margin-left:6px}
+.late{color:var(--bad)}.soon{color:var(--warn)}.fine{color:var(--ok)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.done .t-title{text-decoration:line-through;color:var(--muted)}
+h2{font-size:1rem;margin:22px 0 10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.note{font-size:.82rem;color:var(--muted);margin-top:18px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Study Tracker</h1>
+  <p class="sub">Add a task and its deadline. You’ll get a nudge every 2 days until it’s done.</p>
+
+  <div class="card add">
+    <div class="row">
+      <input id="title" placeholder="Task (e.g. Chemistry lab report)" maxlength="120">
+    </div>
+    <div class="row">
+      <input id="subject" placeholder="Subject (optional)" maxlength="40">
+      <input id="deadline" type="date" aria-label="Deadline">
+    </div>
+    <button class="primary" id="addBtn">Add task</button>
+  </div>
+
+  <div id="reminders"></div>
+  <h2>To do</h2>
+  <div id="todo"></div>
+  <h2>Finished</h2>
+  <div id="finished"></div>
+
+  <p class="note">Calendar buttons open Google Calendar with the event pre-filled—just press Save. The “2-day reminders” event repeats every 2 days from today until the deadline. When you finish a task, delete that reminder event in Google Calendar (choose “All events”) to stop it there.</p>
+</main>
+
+<script>
+(function(){
+  var KEY="study-tracker-v1", tasks=[];
+  function load(){try{var r=localStorage.getItem(KEY);tasks=r?JSON.parse(r):[]}catch(e){tasks=[]}}
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(tasks))}catch(e){}}
+  function iso(d){var m=d.getMonth()+1,x=d.getDate();return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(x<10?"0":"")+x}
+  function parse(s){var p=s.split("-");return new Date(+p[0],+p[1]-1,+p[2])}
+  function today(){var d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())}
+  function days(a,b){return Math.round((a-b)/86400000)}
+  function compact(s){return s.replace(/-/g,"")}
+  function addDay(s,n){var d=parse(s);d.setDate(d.getDate()+n);return compact(iso(d))}
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+
+  function gcal(t,kind){
+    var base="https://calendar.google.com/calendar/render?action=TEMPLATE";
+    var name=(t.subject?"["+t.subject+"] ":"")+t.title;
+    if(kind==="deadline"){
+      return base+"&text="+encodeURIComponent("DUE: "+name)+"&dates="+compact(t.deadline)+"/"+addDay(t.deadline,1)+"&details="+encodeURIComponent("Deadline from Study Tracker");
+    }
+    var start=t.created>t.deadline?t.deadline:t.created;
+    return base+"&text="+encodeURIComponent("Reminder: "+name)+"&dates="+compact(start)+"/"+addDay(start,1)+
+      "&recur="+encodeURIComponent("RRULE:FREQ=DAILY;INTERVAL=2;UNTIL="+compact(t.deadline))+
+      "&details="+encodeURIComponent("Repeats every 2 days until the deadline ("+t.deadline+"). Delete once the task is finished.");
+  }
+
+  function status(t){
+    var left=days(parse(t.deadline),today());
+    if(left<0)return{c:"late",l:Math.abs(left)+" day"+(Math.abs(left)===1?"":"s")+" overdue"};
+    if(left===0)return{c:"late",l:"Due today"};
+    if(left<=3)return{c:"soon",l:left+" day"+(left===1?"":"s")+" left"};
+    return{c:"fine",l:left+" days left"};
+  }
+  function needsReminder(t){return !t.done && days(today(),parse(t.lastReminded))>=2}
+
+  function render(){
+    var open=tasks.filter(function(t){return !t.done}).sort(function(a,b){return a.deadline<b.deadline?-1:1});
+    var fin=tasks.filter(function(t){return t.done}).sort(function(a,b){return a.doneOn<b.doneOn?1:-1});
+    var due=open.filter(needsReminder);
+    var rem=document.getElementById("reminders");
+    rem.innerHTML=due.length?due.map(function(t){var s=status(t);
+      return '<div class="banner"><b>Reminder: '+esc(t.title)+'</b><span class="meta">'+s.l+' · deadline '+t.deadline+'</span>'+
+      '<div class="actions"><button data-ack="'+t.id+'">Got it, remind me in 2 days</button><button data-done="'+t.id+'">I finished it</button></div></div>'}).join(""):"";
+
+    document.getElementById("todo").innerHTML=open.length?open.map(function(t){var s=status(t);
+      return '<div class="card"><div class="task"><input type="checkbox" data-done="'+t.id+'" aria-label="Mark finished"><div style="flex:1">'+
+      '<div class="t-title">'+esc(t.title)+(t.subject?'<span class="tag meta">'+esc(t.subject)+'</span>':'')+'</div>'+
+      '<div class="meta">Due '+t.deadline+' · <span class="'+s.c+'">'+s.l+'</span></div>'+
+      '<div class="actions"><a class="btn" target="_blank" rel="noopener" href="'+gcal(t,"deadline")+'">+ Deadline to Calendar</a>'+
+      '<a class="btn" target="_blank" rel="noopener" href="'+gcal(t,"remind")+'">+ 2-day reminders</a>'+
+      '<button data-del="'+t.id+'">Delete</button></div></div></div></div>'}).join(""):'<p class="meta">Nothing pending. Nice work!</p>';
+
+    document.getElementById("finished").innerHTML=fin.length?fin.map(function(t){
+      return '<div class="card done"><div class="task"><input type="checkbox" checked data-undo="'+t.id+'" aria-label="Mark not finished"><div style="flex:1"><div class="t-title">'+esc(t.title)+'</div><div class="meta">Finished '+t.doneOn+'</div></div><button data-del="'+t.id+'">Delete</button></div></div>'}).join(""):'<p class="meta">No finished tasks yet.</p>';
+  }
+
+  function find(id){return tasks.filter(function(t){return String(t.id)===id})[0]}
+
+  document.getElementById("addBtn").onclick=function(){
+    var title=document.getElementById("title").value.trim(), dl=document.getElementById("deadline").value;
+    if(!title||!dl){alert("Please enter a task and a deadline.");return}
+    var td=iso(today());
+    tasks.push({id:Date.now(),title:title,subject:document.getElementById("subject").value.trim(),deadline:dl,created:td,lastReminded:td,done:false});
+    save();document.getElementById("title").value="";document.getElementById("subject").value="";render();
+  };
+  document.body.addEventListener("click",function(e){
+    var el=e.target.closest("[data-done],[data-undo],[data-ack],[data-del]");if(!el)return;
+    var t;
+    if(el.dataset.done&&(t=find(el.dataset.done))){t.done=true;t.doneOn=iso(today())}
+    else if(el.dataset.undo&&(t=find(el.dataset.undo))){t.done=false;t.lastReminded=iso(today())}
+    else if(el.dataset.ack&&(t=find(el.dataset.ack))){t.lastReminded=iso(today())}
+    else if(el.dataset.del){tasks=tasks.filter(function(x){return String(x.id)!==el.dataset.del})}
+    save();render();
+  });
+  load();render();
+  try{if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js")}catch(e){}
+})();
+</script>
+</body>
+</html>
